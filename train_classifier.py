@@ -4,7 +4,6 @@ import torch
 import logging
 import json
 import argparse
-import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
@@ -18,7 +17,7 @@ from scipy.optimize import brentq
 from scipy.interpolate import interp1d
 from sklearn.metrics import roc_curve
 
-DEBUG = False
+DEBUG = True
 
 # class EyeDataloader(object):
 #
@@ -60,22 +59,32 @@ class ClassifierTrainer(object):
         self.num_workers = args.num_workers
         self.learning_rate = args.learning_rate
         self.weight_decay = args.weight_decay
-        self.num_epochs = args.num_epochs
         self.timestep = timestep
         self.pretrained_cls = args.pretrained_cls
         self.num_iters = args.num_iters
         self.train_size = args.train_size
         self.valid_size = args.valid_size
 
+        # Create directory to save outputs
         if DEBUG:
             self.saving_dir = os.path.join(args.output, 'debug', 'cls_{}'.format(timestep))
         else:
-            self.saving_dir = os.path.join(args.output,  'cls', 'cls_{}'.format(timestep))
+            self.saving_dir = os.path.join(args.output, 'cls', 'cls_{}'.format(timestep))
+        if not os.path.exists(self.saving_dir):
+            os.makedirs(self.saving_dir)
+
+        # Save arguments
+        with open(os.path.join(self.saving_dir, 'config_cls.txt'), 'w') as f:
+            json.dump(args.__dict__, f, indent=2)
 
     def train(self):
+        """
+        Classifier training loop
+        :return:
+        """
 
-        writer_train = SummaryWriter(saving_dir + '/runs_' + timestep + '/train')
-        writer_valid = SummaryWriter(saving_dir + '/runs_' + timestep + '/valid')
+        writer_train = SummaryWriter(self.saving_dir + '/runs_' + timestep + '/train')
+        writer_valid = SummaryWriter(self.saving_dir + '/runs_' + timestep + '/valid')
 
         train_dataset = load_ann_dataset(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
                                          is_train=True, size=self.train_size)
@@ -91,10 +100,11 @@ class ClassifierTrainer(object):
         logger.info("Len(parameters): %s" % len(all_params))
 
         optimizable_params = [p for p in self.model.parameters() if p.requires_grad]
-        print("Len(optimizable_params)", len(optimizable_params))
-        # optimizer = torch.optim.Adam(optimizable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
-        optimizer = torch.optim.RMSprop(optimizable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+        logger.info("Len(optimizable_params): %s" % len(optimizable_params))
+        optimizer = torch.optim.Adam(optimizable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
+        # optimizer = torch.optim.RMSprop(optimizable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
 
+        # Log training and validation metrics
         results = dict(
             iteration=[],
             train_loss=[],
@@ -140,6 +150,7 @@ class ClassifierTrainer(object):
                         f'---- train accuracy: {train_accuracy.item():.5f}')
 
                     sample_idx = 0
+                    plt.figure()
                     plt.imshow(image_batch[sample_idx, 0, ...].detach().cpu().numpy(), cmap='gray')
 
                     def to_text(flag):
@@ -151,10 +162,10 @@ class ClassifierTrainer(object):
                     output_dir = os.path.join(self.saving_dir, 'predictions')
                     os.makedirs(output_dir, exist_ok=True)
                     plt.savefig(output_dir + f"/{step_idx:06d}.png")
+                    plt.close()
 
-                    # plt.show()
+                    valid_loss, valid_accuracy, eer, thresh = self.validate(val_loader, step_idx)
 
-                    valid_loss, valid_accuracy, eer, thresh = self.validate(val_loader)
                     results['iteration'].append(step_idx)
                     results['train_loss'].append(train_loss.item())
                     results['train_accuracy'].append(train_accuracy.item())
@@ -170,23 +181,35 @@ class ClassifierTrainer(object):
                         f'---- EER: {eer:.5f}---|'
                         f'---- threshold: {thresh:.3f}')
 
-            if len(results['valid_accuracy']) > 2 and results['valid_accuracy'][-1] > results['valid_accuracy'][-2]:
-                output_dir = os.path.join(self.saving_dir, 'cls_{}.pth'.format(timestep))
-                torch.save(self.model.state_dict(), output_dir)
+                    writer_train.add_scalar('loss', train_loss, step_idx)
+                    writer_train.add_scalar('accuracy', train_accuracy, step_idx)
+                    writer_valid.add_scalar('loss', valid_loss, step_idx)
+                    writer_valid.add_scalar('accuracy', valid_accuracy, step_idx)
+
+                    # Save only if better metrics
+                    if len(results['valid_accuracy']) > 2 and results['valid_accuracy'][-1] > results['valid_accuracy'][-2] or \
+                            len(results['valid_eer']) > 2 and results['valid_eer'][-1] < results['valid_eer'][-2]:
+                        output_dir = os.path.join(self.saving_dir, 'cls_{}_{}.pth'.format(step_idx, timestep))
+                        torch.save(self.model.state_dict(), output_dir)
 
             step_idx += 1
-
-            writer_train.add_scalar('loss', train_loss, step_idx)
-            writer_valid.add_scalar('loss', valid_loss, step_idx)
-
-            writer_train.add_scalar('accuracy', train_accuracy, step_idx)
-            writer_valid.add_scalar('accuracy', valid_accuracy, step_idx)
 
             results_to_save = pd.DataFrame(results)
             output_dir = os.path.join(self.saving_dir, 'cls_{}.csv'.format(timestep))
             results_to_save.to_csv(output_dir, index=False)
 
-    def validate(self, val_loader):
+            if len(results['train_loss']) and abs(results['train_loss'][-1] - results['valid_loss'][-1]) > args.margin:
+                logger.info("Early stopping!")
+                break
+
+    def validate(self, val_loader, step_idx):
+        """
+        Classifier validation loop
+
+        :param val_loader:
+        :param step_idx:
+        :return:
+        """
 
         self.model.train(False)
         image_batch, target_batch = next(iter(val_loader))
@@ -200,9 +223,24 @@ class ClassifierTrainer(object):
         accuracy = torch.sum(torch.eq(hard_pred_batch, target_bool_batch)) / len(target_bool_batch)
 
         fpr, tpr, thresholds = roc_curve(target_batch.cpu(),  pred_batch.cpu(), pos_label=1)
-
         eer = brentq(lambda x: 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
         thresh = interp1d(fpr, thresholds)(eer)
+
+        plt.figure()
+        plt.plot(fpr, tpr, color="darkorange", label="ROC with EER = %0.2f" % eer,)
+        plt.plot([0, 1], [0, 1], color="navy", linestyle="--")
+        plt.plot([0, 1], [1, 0], linestyle="--")
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title("Receiver operating characteristic")
+        plt.legend(loc="lower right")
+
+        output_dir = os.path.join(self.saving_dir, 'plots')
+        os.makedirs(output_dir, exist_ok=True)
+        plt.savefig(output_dir + f"/{step_idx:06d}.png")
+        plt.close()
 
         return loss, accuracy, eer, thresh
 
@@ -219,8 +257,8 @@ if __name__ == "__main__":
     parser.add_argument('--num_workers', default=cfg_cls.num_workers, help='number of workers for dataloader', type=int)
     parser.add_argument('--learning_rate', default=cfg_cls.learning_rate, help='learning rate for optimizer', type=float)
     parser.add_argument('--weight_decay', default=cfg_cls.weight_decay, help='weight decay for optimizer', type=float)
-    parser.add_argument('--num_epochs', default=cfg_cls.num_epochs, help='number of epochs for training', type=int)
     parser.add_argument('--num_iters', default=cfg_cls.num_iters, help='number of iterations for training', type=int)
+    parser.add_argument('--margin', default=cfg_cls.margin, help='margin between losses for early stopping', type=float)
     parser.add_argument('--device', default=cfg_cls.device, help='device to use', type=str)
     parser.add_argument('--train_size', default=cfg_cls.train_size, help='size of annotated training set', type=float)
     parser.add_argument('--valid_size', default=cfg_cls.valid_size, help='size of annotated validation set', type=float)
@@ -238,8 +276,7 @@ if __name__ == "__main__":
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
     timestep = time.strftime("%Y%m%d-%H%M%S")
 
-    # Define loggin
-    # g
+    # Define logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger()
     file_handler = logging.FileHandler(os.path.join(args.logs, timestep))
@@ -247,18 +284,6 @@ if __name__ == "__main__":
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.info("Used device: %s" % device)
-
-    # Create directory to save outputs
-    if DEBUG:
-        saving_dir = os.path.join(args.output, 'debug', 'cls_{}'.format(timestep))
-    else:
-        saving_dir = os.path.join(args.output, 'cls', 'cls_{}'.format(timestep))
-    if not os.path.exists(saving_dir):
-        os.makedirs(saving_dir)
-
-    # Save arguments
-    with open(os.path.join(saving_dir, 'config_cls.txt'), 'w') as f:
-        json.dump(args.__dict__, f, indent=2)
 
     # Run VAE training
     cls_trainer = ClassifierTrainer(args, timestep, from_scratch=cfg_cls.from_scratch)
