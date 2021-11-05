@@ -11,12 +11,25 @@ import torch
 import sys
 
 
-def load_archive(data_dir):
-    archive = zipfile.ZipFile(data_dir, "r")
+def load_archive(ann_data_dir, unlabeled_zip, exclude_ann=False):
+    """
+    Loads data in zip format
+
+    :param ann_data_dir:
+    :param unlabeled_zip:
+    :param exclude_ann:
+    :return:
+    """
+    archive = zipfile.ZipFile(unlabeled_zip, "r")
+    with open(ann_data_dir, "r") as f:
+        ann_dataset = json.load(f)
     num_images = 0
     image_list = []
     filenames = []
     for name in archive.filelist:
+        im_id = name.filename.split('/')[1]
+        if exclude_ann and (im_id in ann_dataset['open'] or im_id in ann_dataset['closed']):
+            continue
         if "__MACOSX" in name.filename:
             continue
         image_bytes = archive.read(name)
@@ -33,23 +46,36 @@ def load_archive(data_dir):
     return image_list, filenames
 
 
-def load_dataset(labeled_data_dir, unlabeled_zip, is_train):
-    with open(labeled_data_dir, "r") as f:
+def load_ann_dataset(ann_data_dir, unlabeled_zip, is_train, size=50):
+    """
+    Loads annotated data
+
+    :param ann_data_dir:
+    :param unlabeled_zip:
+    :param is_train:
+    :param size:
+    :return:
+    """
+    with open(ann_data_dir, "r") as f:
         dataset = json.load(f)
     flat_list = []
     for label, lst in dataset.items():
-        val_div = 2
         if is_train:
-            lst = lst[len(lst) // val_div:]
+            lst = lst[size // 2:]
         else:
-            lst = lst[:len(lst) // val_div]
+            lst = lst[:size // 2]
+        # val_div = 2
+        # if is_train:
+        #     lst = lst[len(lst) // val_div:]
+        # else:
+        #     lst = lst[:len(lst) // val_div]
         if label == "open":
             for name in lst:
                 flat_list.append(('EyesDataset/' + name, 1))
         else:
             for name in lst:
                 flat_list.append(('EyesDataset/' + name, 0))
-    image_list, filenames = load_archive(unlabeled_zip)
+    image_list, filenames = load_archive(ann_data_dir, unlabeled_zip)
     name_to_image = dict(zip(filenames, image_list))
     images = []
     for im_name, im_target in flat_list:
