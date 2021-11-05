@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 from configs.config_vae import args
-from utils.utils import load_archive
+from utils.data_loader import load_archive
 from utils.models import VAE, kl_divergence
 
 
