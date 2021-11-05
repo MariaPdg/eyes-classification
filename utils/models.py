@@ -3,6 +3,7 @@ import sys
 import torch
 import torch.nn as nn
 from collections import OrderedDict
+import contextlib
 
 
 class BatchNorm(nn.Module):
@@ -96,7 +97,7 @@ class EyeClassifier(nn.Module):
     def __init__(self, latent_size, pretrained_vae=None):
         super().__init__()
         self.encoder = Encoder(latent_size)
-        # self.freeze_backbone = args.pretrained_vae is not None
+        self.freeze_backbone = pretrained_vae is not None
         if pretrained_vae is not None:
             state_dict = torch.load(pretrained_vae)
             state_dict = OrderedDict(((k[len("encoder."):], v)
@@ -109,8 +110,9 @@ class EyeClassifier(nn.Module):
         self.class_fc = nn.Linear(latent_size, 1)
 
     def forward(self, x):
-        # with torch.no_grad() if self.freeze_backbone else contextlib.nullcontext():
-        mu, log_var = self.encoder(x)
+        # if pretrained_model exists otherwise nothing
+        with torch.no_grad() if self.freeze_backbone else contextlib.nullcontext():
+            mu, log_var = self.encoder(x)
         logits = self.class_fc(mu)
         x = torch.sigmoid(logits)
         x = x.squeeze(-1)
