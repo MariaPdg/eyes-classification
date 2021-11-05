@@ -1,3 +1,5 @@
+import os
+import sys
 import torch
 import torch.nn as nn
 from collections import OrderedDict
@@ -120,5 +122,9 @@ class EyeClassifier(nn.Module):
 
 
 if __name__ == "__main__":
-    
+
+    print(len(sys.argv))
+    print(sys.argv)
+    data_dir = os.path.join(sys.argv[1], 'vae_20211104-213016/vae_20211104-213016.pth')
     vae = VAE(latent_size=50).cuda()
+    classifier = EyeClassifier(latent_size=50, pretrained_vae=data_dir).cuda()
