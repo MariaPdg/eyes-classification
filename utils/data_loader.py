@@ -1,19 +1,17 @@
-import matplotlib.pyplot as plt
-import zipfile
-import numpy as np
-from PIL import Image
-import matplotlib.image as mpimg
 import os
 import io
-import random
-import json
-import torch
 import sys
+import json
+import zipfile
+
+import torch
+import numpy as np
+from PIL import Image
 
 
 def load_archive(ann_data_dir, unlabeled_zip, exclude_ann=False):
     """
-    Loads data in zip format
+    Load data from zip archive
 
     :param ann_data_dir:
     :param unlabeled_zip:
@@ -39,16 +37,12 @@ def load_archive(ann_data_dir, unlabeled_zip, exclude_ann=False):
         image_list.append(image)
         filenames.append(name.filename)
         num_images += 1
-    #     if False and num_images < 10:
-    #         plt.imshow(image, cmap='gray')
-    #         plt.show()
-    # images = np.array(image_list)
     return image_list, filenames
 
 
 def load_ann_dataset(ann_data_dir, unlabeled_zip, is_train, size=50):
     """
-    Loads annotated data
+    Load annotated data from .json file
 
     :param ann_data_dir:
     :param unlabeled_zip:
@@ -64,17 +58,14 @@ def load_ann_dataset(ann_data_dir, unlabeled_zip, is_train, size=50):
             lst = lst[size // 2:]
         else:
             lst = lst[:size // 2]
-        # val_div = 2
-        # if is_train:
-        #     lst = lst[len(lst) // val_div:]
-        # else:
-        #     lst = lst[:len(lst) // val_div]
         if label == "open":
             for name in lst:
-                flat_list.append(('EyesDataset/' + name, 1))
+                # extract unzipped folder name from unlabeled_zip path
+                name_folder = unlabeled_zip.split('/')[-1].split('.zip')[0] + '/'
+                flat_list.append((name_folder + name, 1))
         else:
             for name in lst:
-                flat_list.append(('EyesDataset/' + name, 0))
+                flat_list.append((name_folder + name, 0))
     image_list, filenames = load_archive(ann_data_dir, unlabeled_zip)
     name_to_image = dict(zip(filenames, image_list))
     images = []
