@@ -4,11 +4,14 @@ import torch
 import logging
 import json
 import argparse
+
 import numpy as np
 import torch.nn as nn
 from PIL import Image
 import matplotlib.pyplot as plt
-import configs.config_cls as cfg_cls
+
+import configs.cls_config as cfg_cls
+import configs.data_config as cfg_data
 from utils.models import EyeClassifier
 
 
@@ -82,8 +85,9 @@ class OpenEyesClassificator(nn.Module):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--root', '-r', help='root dir for the project', type=str)
-    parser.add_argument('--output_dir', '-o', default=cfg_cls.output_dir, help='path to save training files', type=str)
+    parser.add_argument('--root', '-r', default=cfg_data.root_dir, help='root project directory', type=str)
+    parser.add_argument('--output_dir', '-o', default=cfg_data.output_dir, help='path to save training files', type=str)
+    parser.add_argument('--logs_dir', '-l', default=cfg_data.logs_dir, help='path to save logs', type=str)
     parser.add_argument('--latent_size', default=cfg_cls.latent_size, help='dimension of the latent space', type=int)
     parser.add_argument('--device', default=cfg_cls.device, help='device to use', type=str)
     parser.add_argument('--abs_model_path', '-cls_path', default=cfg_cls.abs_model_path,
@@ -102,7 +106,9 @@ if __name__ == "__main__":
     # Define logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger()
-    file_handler = logging.FileHandler(os.path.join(args.root, 'logs', timestep))
+    log_dir = os.path.join(args.root, args.logs_dir)
+    os.makedirs(log_dir, exist_ok=True)
+    file_handler = logging.FileHandler(os.path.join(log_dir, timestep))
     logger = logging.getLogger()
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)

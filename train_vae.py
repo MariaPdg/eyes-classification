@@ -10,7 +10,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 
-import configs.config_vae as cfg_vae
+import configs.vae_config as cfg_vae
+import configs.data_config as cfg_data
 import utils.models as models
 import utils.data_loader as utils
 
@@ -23,7 +24,6 @@ class VaeTrainer(object):
 
     def __init__(self, args, timestep, pretrain=False):
         """
-
         :param args: ArgumentParser object
             Arguments defined in configurations
         :param timestep: string from time.strftime function
@@ -156,10 +156,10 @@ class VaeTrainer(object):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--root', '-r', help='root project directory', type=str)
-    parser.add_argument('--data_dir', '-d_dir', default=cfg_vae.data_dir, help='path to the dataset', type=str)
-    parser.add_argument('--output_dir', '-o', default=cfg_vae.output_dir, help='path to save training files', type=str)
-    parser.add_argument('--logs_dir', '-l', default=cfg_vae.logs_dir, help='path to save logs', type=str)
+    parser.add_argument('--root', '-r', default=cfg_data.root_dir, help='root project directory', type=str)
+    parser.add_argument('--data_dir', '-d_dir', default=cfg_data.data_dir, help='path to the dataset', type=str)
+    parser.add_argument('--output_dir', '-o', default=cfg_data.output_dir, help='path to save training files', type=str)
+    parser.add_argument('--logs_dir', '-l', default=cfg_data.logs_dir, help='path to save logs', type=str)
     parser.add_argument('--beta', '-be', default=cfg_vae.beta, help='scale for KL divergence in VAE', type=float)
     parser.add_argument('--batch_size', '-bs', default=cfg_vae.batch_size, help='batch size for training', type=int)
     parser.add_argument('--num_iters', '-ni', default=cfg_vae.num_iters, help='number of epochs for training', type=int)
@@ -183,7 +183,9 @@ if __name__ == "__main__":
     # Define logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger()
-    file_handler = logging.FileHandler(os.path.join(args.root, args.logs_dir, timestep))
+    log_dir = os.path.join(args.root, args.logs_dir)
+    os.makedirs(log_dir, exist_ok=True)
+    file_handler = logging.FileHandler(os.path.join(log_dir, timestep))
     logger = logging.getLogger()
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)

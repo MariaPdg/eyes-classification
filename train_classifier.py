@@ -15,7 +15,8 @@ from scipy.optimize import brentq
 from scipy.interpolate import interp1d
 from sklearn.metrics import roc_curve
 
-import configs.config_cls as cfg_cls
+import configs.cls_config as cfg_cls
+import configs.data_config as cfg_data
 from utils.data_loader import load_ann_dataset
 from utils.models import EyeClassifier
 
@@ -294,10 +295,10 @@ class ClassifierTrainer(object):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--root', '-r', help='root project directory', type=str)
-    parser.add_argument('--data_dir', '-d_dir', default=cfg_cls.data_dir, help='dir to dataset', type=str)
-    parser.add_argument('--output_dir', '-o', default=cfg_cls.output_dir, help='path to save training files', type=str)
-    parser.add_argument('--logs_dir', '-l', default=cfg_cls.logs_dir, help='path to save logs', type=str)
+    parser.add_argument('--root', '-r', default=cfg_data.root_dir, help='root project directory', type=str)
+    parser.add_argument('--data_dir', '-d_dir', default=cfg_data.data_dir, help='dir to dataset', type=str)
+    parser.add_argument('--output_dir', '-o', default=cfg_data.output_dir, help='path to save training files', type=str)
+    parser.add_argument('--logs_dir', '-l', default=cfg_data.logs_dir, help='path to save logs', type=str)
     parser.add_argument('--latent_size', default=cfg_cls.latent_size, help='dimension of the latent space', type=int)
     parser.add_argument('--batch_size', default=cfg_cls.batch_size, help='batch size for training', type=int)
     parser.add_argument('--num_workers', default=cfg_cls.num_workers, help='number of workers for dataloader', type=int)
@@ -325,7 +326,9 @@ if __name__ == "__main__":
     # Define logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger()
-    file_handler = logging.FileHandler(os.path.join(args.root, args.logs_dir, timestep))
+    log_dir = os.path.join(args.root, args.logs_dir)
+    os.makedirs(log_dir, exist_ok=True)
+    file_handler = logging.FileHandler(os.path.join(log_dir, timestep))
     logger = logging.getLogger()
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
