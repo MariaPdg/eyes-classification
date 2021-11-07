@@ -25,7 +25,19 @@ DEBUG = False
 
 class ClassifierTrainer(object):
 
+    """ A class for classifier training """
+
     def __init__(self, args, timestep, from_scratch=False, evaluate=False):
+        """
+        :param args: ArgumentParser object
+            Arguments defined in configurations
+        :param timestep: string from time.strftime function
+            Time value from  to set a unique name
+        :param from_scratch: bool, optional
+            True if train without pre-trained VAE
+        :param evaluate: bool, optional
+            True if evaluate model only
+        """
 
         if from_scratch:
             self.pretrained_vae = None
@@ -181,20 +193,25 @@ class ClassifierTrainer(object):
             output_dir = os.path.join(self.saving_dir, 'cls_{}.csv'.format(timestep))
             results_to_save.to_csv(output_dir, index=False)
 
-            if len(results['train_loss']) and abs(results['train_loss'][-1] - results['valid_loss'][-1]) > args.margin:
-                logger.info("Early stopping!")
-                break
+            # if len(results['train_loss']) and abs(results['train_loss'][-1] - results['valid_loss'][-1]) > args.margin:
+            #     logger.info("Early stopping!")
+            #     break
 
     def plot_predictions(self, image_batch, pred_batch, target_batch, step_idx, split='train'):
         """
-        Plot image grid with predictions and targets
+        Plots image grid with predictions and targets
 
-        :param image_batch:
-        :param pred_batch:
-        :param target_batch:
-        :param step_idx:
-        :param split:
-        :return:
+        :param image_batch: torch.tensor
+            Batch of ground truth images
+        :param pred_batch: torch.tensor
+            Batch of predicted targets
+        :param target_batch: torch.tensor
+            Batch of ground truth targets {0, 1}
+        :param step_idx:int
+            Index of the current iteration
+        :param split: string, optional
+            Name of data split to visualize, default: 'train'
+        :return: plots grid of images with predictions
         """
 
         def to_text(flag):
@@ -223,9 +240,19 @@ class ClassifierTrainer(object):
         """
         Validation loop for classifier
 
-        :param val_loader:
-        :param step_idx:
-        :return:
+        :param val_loader: torch.tensor
+            Validation dataset
+        :param step_idx: int
+            Index of the current iteration
+        :returns:
+            loss: torch.tensor
+                Validation loss
+            accuracy: torch.tensor
+                Validation accuracy
+            eer: float
+                Validation Equal Error Rate (EER)
+            thresh: float
+                Threshold corresponding to EER
         """
 
         self.model.train(False)

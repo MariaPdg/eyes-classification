@@ -11,12 +11,19 @@ from PIL import Image
 
 def load_archive(ann_data_dir, unlabeled_zip, exclude_ann=False):
     """
-    Load data from zip archive
+    Loads data from zip archive
 
-    :param ann_data_dir:
-    :param unlabeled_zip:
-    :param exclude_ann:
+    :param ann_data_dir: string
+        Directory to JSON file with annotated data
+    :param unlabeled_zip: string
+        Directory to ZIP archive with the whole dataset
+    :param exclude_ann: bool, optional
+        True if exclude annotated data from the dataset
     :return:
+        image_list: list of arrays
+            List if images in the array format
+        filenames: list of strings
+            List of paths to images
     """
     archive = zipfile.ZipFile(unlabeled_zip, "r")
     with open(ann_data_dir, "r") as f:
@@ -42,20 +49,25 @@ def load_archive(ann_data_dir, unlabeled_zip, exclude_ann=False):
 
 def load_ann_dataset(ann_data_dir, unlabeled_zip, is_train, size=50):
     """
-    Load annotated data from .json file
+    Loads annotated data from .json file
 
-    :param ann_data_dir:
-    :param unlabeled_zip:
-    :param is_train:
-    :param size:
-    :return:
+    :param ann_data_dir: string
+        Directory to JSON file with annotated data
+    :param unlabeled_zip: string
+        Directory to ZIP archive with the whole dataset
+    :param is_train: bool
+        True if training set
+    :param size: int
+        Size of the dataset
+    :return: dataset: torch.tensor
+        Image tensors and corresponding targets
     """
     with open(ann_data_dir, "r") as f:
         dataset = json.load(f)
     flat_list = []
     for label, lst in dataset.items():
         if is_train:
-            lst = lst[size // 2:]
+            lst = lst[-size // 2:]
         else:
             lst = lst[:size // 2]
         if label == "open":

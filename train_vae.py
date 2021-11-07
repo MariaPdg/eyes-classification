@@ -19,7 +19,18 @@ DEBUG = False
 
 class VaeTrainer(object):
 
+    """ A class for VAE training """
+
     def __init__(self, args, timestep, pretrain=False):
+        """
+
+        :param args: ArgumentParser object
+            Arguments defined in configurations
+        :param timestep: string from time.strftime function
+            Time value from  to set a unique name
+        :param pretrain: bool, optional
+            True to continue training
+        """
 
         self.vae = models.VAE(latent_size=args.latent_size)
         self.vae.cuda()
@@ -47,6 +58,10 @@ class VaeTrainer(object):
             json.dump(args.__dict__, f, indent=2)
 
     def train(self):
+        """
+        Training loop for VAE
+        :return:
+        """
 
         writer = SummaryWriter(self.saving_dir + '/runs_' + self.timestep)
 
