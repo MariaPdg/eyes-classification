@@ -89,10 +89,45 @@ def load_ann_dataset(ann_data_dir, unlabeled_zip, is_train, size=50):
     images_np = np.array(images)
     images_np = 1 / 255 * np.expand_dims(images_np, 1)
     targets_np = np.array([v[1] for v in flat_list])
-    dataset = torch.utils.data.TensorDataset(
-        torch.tensor(images_np, dtype=torch.float32),
-        torch.tensor(targets_np, dtype=torch.float32))
-    return dataset
+
+    return images_np, targets_np
+
+
+class EyesAnnotatedDataloader(object):
+
+    """ Dataloader for annotated data"""
+
+    def __init__(self, ann_data_dir, unlabeled_zip, is_train, size=50, transform=None):
+        """
+
+        :param ann_data_dir: string
+            Directory to JSON file with annotated data
+        :param unlabeled_zip: string
+            Directory to ZIP archive with the whole dataset
+        :param is_train: bool
+            True if training set
+        :param size: int
+            Size of the dataset
+        :param transform: list of transformations
+            Transformations applied to images
+        """
+
+        self.images, self.targets = load_ann_dataset(ann_data_dir=ann_data_dir, unlabeled_zip=unlabeled_zip,
+                         is_train=is_train, size=size)
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.targets)
+
+    def __getitem__(self, idx):
+
+        image = torch.tensor(self.images[idx], dtype=torch.float32)
+        targets = torch.tensor(self.targets[idx], dtype=torch.float32)
+
+        if self.transform:
+            image = self.transform(image)
+
+        return image, targets
 
 
 if __name__ == "__main__":

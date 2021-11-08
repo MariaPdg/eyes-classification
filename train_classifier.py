@@ -7,6 +7,7 @@ import random
 
 import torch
 import torch.nn.functional as F
+from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 
 import pandas as pd
@@ -17,7 +18,7 @@ from sklearn.metrics import roc_curve
 
 import configs.cls_config as cfg_cls
 import configs.data_config as cfg_data
-from utils.data_loader import load_ann_dataset
+from utils.data_loader import load_ann_dataset, EyesAnnotatedDataloader
 from utils.models import EyeClassifier
 
 
@@ -28,11 +29,11 @@ class ClassifierTrainer(object):
 
     """ A class for classifier training """
 
-    def __init__(self, args, timestep, from_scratch=False, evaluate=False):
+    def __init__(self, args, timestamp, from_scratch=False, evaluate=False):
         """
         :param args: ArgumentParser object
             Arguments defined in configurations
-        :param timestep: string from time.strftime function
+        :param timestamp: string from time.strftime function
             Time value from  to set a unique name
         :param from_scratch: bool, optional
             True if train without pre-trained VAE
@@ -58,15 +59,15 @@ class ClassifierTrainer(object):
         self.num_iters = args.num_iters
         self.train_size = args.train_size
         self.valid_size = args.valid_size
-        self.timestep = timestep
+        self.timestamp = timestamp
         self.evaluate = evaluate
         self.output_dir = os.path.join(args.root, args.output_dir)
 
         # Create directory to save outputs
         if DEBUG:
-            self.saving_dir = os.path.join(args.root, args.output_dir, 'debug', 'cls_{}'.format(self.timestep))
+            self.saving_dir = os.path.join(args.root, args.output_dir, 'debug', 'cls_{}'.format(self.timestamp))
         else:
-            self.saving_dir = os.path.join(args.root, args.output_dir, 'cls', 'cls_{}'.format(self.timestep))
+            self.saving_dir = os.path.join(args.root, args.output_dir, 'cls', 'cls_{}'.format(self.timestamp))
         if not os.path.exists(self.saving_dir):
             os.makedirs(self.saving_dir)
 
@@ -80,13 +81,21 @@ class ClassifierTrainer(object):
         :return:
         """
 
-        writer_train = SummaryWriter(self.saving_dir + '/runs_' + self.timestep + '/train')
-        writer_valid = SummaryWriter(self.saving_dir + '/runs_' + self.timestep + '/valid')
+        writer_train = SummaryWriter(self.saving_dir + '/runs_' + self.timestamp + '/train')
+        writer_valid = SummaryWriter(self.saving_dir + '/runs_' + self.timestamp + '/valid')
 
-        train_dataset = load_ann_dataset(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
-                                         is_train=True, size=self.train_size)
-        val_dataset = load_ann_dataset(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
-                                       is_train=False, size=self.valid_size)
+        # train_dataset = load_ann_dataset(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
+        #                                  is_train=True, size=self.train_size)
+        # val_dataset = load_ann_dataset(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
+        #                                is_train=False, size=self.valid_size)
+        train_dataset = EyesAnnotatedDataloader(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
+                                                is_train=True, size=self.train_size,
+
+                                                )
+        val_dataset = EyesAnnotatedDataloader(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
+                                              is_train=False, size=self.train_size,
+
+                                              )
 
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=len(train_dataset),
                                                    shuffle=True, num_workers=self.num_workers, drop_last=True)
@@ -119,10 +128,11 @@ class ClassifierTrainer(object):
                          self.pretrained_cls[0].split('_')[1] + '.pth'
             model_dir = os.path.join(self.output_dir, 'cls', self.pretrained_cls[0], model_name)
             if os.path.exists(model_dir):
-                logging.info('Load pretrained model {}'.format(model_name))
+                logging.info('Load pretrained model {}'.format(model_dir))
                 self.model.load_state_dict(torch.load(model_dir))
             if self.evaluate:
-                valid_loss, valid_accuracy, eer, thresh = self.validate(val_loader, step_idx)
+                # Only evaluate the model and save predictions
+                valid_loss, valid_accuracy, eer, thresh = self.validate(val_loader, step_idx, save=True)
                 logging.info(
                     f'Iteration {step_idx}  '
                     f'---- valid loss: {valid_loss.item():.5f} ---- | '
@@ -185,18 +195,18 @@ class ClassifierTrainer(object):
                     # Save only if better metrics
                     if len(results['valid_accuracy']) > 2 and results['valid_accuracy'][-1] > results['valid_accuracy'][-2] or \
                             len(results['valid_eer']) > 2 and results['valid_eer'][-1] < results['valid_eer'][-2]:
-                        output_dir = os.path.join(self.saving_dir, 'cls_{}_{}.pth'.format(step_idx, timestep))
+                        output_dir = os.path.join(self.saving_dir, 'cls_{}_{}.pth'.format(step_idx, self.timestamp))
                         torch.save(self.model.state_dict(), output_dir)
 
             step_idx += 1
 
             results_to_save = pd.DataFrame(results)
-            output_dir = os.path.join(self.saving_dir, 'cls_{}.csv'.format(timestep))
+            output_dir = os.path.join(self.saving_dir, 'cls_{}.csv'.format(self.timestamp))
             results_to_save.to_csv(output_dir, index=False)
 
-            # if len(results['train_loss']) and abs(results['train_loss'][-1] - results['valid_loss'][-1]) > args.margin:
-            #     logger.info("Early stopping!")
-            #     break
+            if len(results['train_loss']) and abs(results['train_loss'][-1] - results['valid_loss'][-1]) > args.margin:
+                logger.info("Early stopping!")
+                break
 
     def plot_predictions(self, image_batch, pred_batch, target_batch, step_idx, split='train'):
         """
@@ -237,7 +247,7 @@ class ClassifierTrainer(object):
         plt.savefig(output_dir + f"/{step_idx:06d}.png")
         plt.close()
 
-    def validate(self, val_loader, step_idx):
+    def validate(self, val_loader, step_idx, save=False):
         """
         Validation loop for classifier
 
@@ -245,6 +255,8 @@ class ClassifierTrainer(object):
             Validation dataset
         :param step_idx: int
             Index of the current iteration
+        :param save: bool, optional
+            True to save the predictions in .csv file
         :returns:
             loss: torch.tensor
                 Validation loss
@@ -273,6 +285,7 @@ class ClassifierTrainer(object):
         eer = brentq(lambda x: 1. - x - interp1d(fpr, tpr)(x), 0., 1.)
         thresh = interp1d(fpr, thresholds)(eer)
 
+        # plot ROC curve
         plt.figure()
         plt.plot(fpr, tpr, color="darkorange", label="ROC with EER = %0.2f" % eer,)
         plt.plot([0, 1], [0, 1], color="navy", linestyle="--")
@@ -288,6 +301,14 @@ class ClassifierTrainer(object):
         os.makedirs(output_dir, exist_ok=True)
         plt.savefig(output_dir + f"/{step_idx:06d}.png")
         plt.close()
+
+        if save:
+            results = dict()
+            results['predictions'] = [1 if x.item() is True else 0 for x in hard_pred_batch]
+            results['targets'] = [1 if x.item() is True else 0 for x in target_bool_batch]
+            output_dir = os.path.join(self.saving_dir, 'val_predictions_{}.csv'.format(self.timestamp))
+            results = pd.DataFrame(results)
+            results.to_csv(output_dir, index=False)
 
         return loss, accuracy, eer, thresh
 
@@ -321,19 +342,19 @@ if __name__ == "__main__":
 
     # Check available gpu
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
-    timestep = time.strftime("%Y%m%d-%H%M%S")
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
 
     # Define logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger()
     log_dir = os.path.join(args.root, args.logs_dir)
     os.makedirs(log_dir, exist_ok=True)
-    file_handler = logging.FileHandler(os.path.join(log_dir, timestep))
+    file_handler = logging.FileHandler(os.path.join(log_dir, timestamp))
     logger = logging.getLogger()
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.info("Used device: %s" % device)
 
     # Run VAE training
-    cls_trainer = ClassifierTrainer(args, timestep, from_scratch=cfg_cls.from_scratch, evaluate=False)
+    cls_trainer = ClassifierTrainer(args, timestamp, from_scratch=cfg_cls.from_scratch, evaluate=cfg_cls.evaluate)
     cls_trainer.train()
