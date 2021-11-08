@@ -84,17 +84,17 @@ class ClassifierTrainer(object):
         writer_train = SummaryWriter(self.saving_dir + '/runs_' + self.timestamp + '/train')
         writer_valid = SummaryWriter(self.saving_dir + '/runs_' + self.timestamp + '/valid')
 
-        # train_dataset = load_ann_dataset(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
-        #                                  is_train=True, size=self.train_size)
-        # val_dataset = load_ann_dataset(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
-        #                                is_train=False, size=self.valid_size)
         train_dataset = EyesAnnotatedDataloader(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
                                                 is_train=True, size=self.train_size,
-
+                                                transform=transforms.Compose([transforms.RandomHorizontalFlip(),
+                                                                              transforms.transforms.RandomAffine(0.1),
+                                                                              ])
                                                 )
         val_dataset = EyesAnnotatedDataloader(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
                                               is_train=False, size=self.train_size,
-
+                                              transform=transforms.Compose([transforms.RandomHorizontalFlip(),
+                                                                            transforms.transforms.RandomAffine(0.1),
+                                                                            ])
                                               )
 
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=len(train_dataset),
