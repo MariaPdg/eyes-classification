@@ -7,7 +7,6 @@ import random
 
 import torch
 import torch.nn.functional as F
-from torchvision import transforms
 from torch.utils.tensorboard import SummaryWriter
 
 import pandas as pd
@@ -18,7 +17,7 @@ from sklearn.metrics import roc_curve
 
 import configs.cls_config as cfg_cls
 import configs.data_config as cfg_data
-from utils.data_loader import load_ann_dataset, EyesAnnotatedDataloader
+from utils.data_loader import EyesAnnotatedDataloader
 from utils.models import EyeClassifier
 
 
@@ -29,12 +28,10 @@ class ClassifierTrainer(object):
 
     """ A class for classifier training """
 
-    def __init__(self, args, timestamp, from_scratch=False, evaluate=False):
+    def __init__(self, args, from_scratch=False, evaluate=False):
         """
         :param args: ArgumentParser object
             Arguments defined in configurations
-        :param timestamp: string from time.strftime function
-            Time value from  to set a unique name
         :param from_scratch: bool, optional
             True if train without pre-trained VAE
         :param evaluate: bool, optional
@@ -47,7 +44,7 @@ class ClassifierTrainer(object):
             self.pretrained_vae = os.path.join(args.root, args.output_dir, 'vae', args.pretrained_vae, args.pretrained_vae + '.pth')
         self.model = EyeClassifier(args.latent_size, self.pretrained_vae)
 
-        self.model.cuda()
+        self.model.to(device)
         self.cls_threshold = args.cls_threshold
         self.data_dir = os.path.join(args.root, args.data_dir, 'EyesDataset.zip')
         self.labeled_data = os.path.join(args.root, args.data_dir, 'targets.json')
@@ -59,15 +56,11 @@ class ClassifierTrainer(object):
         self.num_iters = args.num_iters
         self.train_size = args.train_size
         self.valid_size = args.valid_size
-        self.timestamp = timestamp
         self.evaluate = evaluate
         self.output_dir = os.path.join(args.root, args.output_dir)
 
         # Create directory to save outputs
-        if DEBUG:
-            self.saving_dir = os.path.join(args.root, args.output_dir, 'debug', 'cls_{}'.format(self.timestamp))
-        else:
-            self.saving_dir = os.path.join(args.root, args.output_dir, 'cls', 'cls_{}'.format(self.timestamp))
+        self.saving_dir = os.path.join(args.root, args.output_dir, 'cls', 'cls_{}'.format(timestamp))
         if not os.path.exists(self.saving_dir):
             os.makedirs(self.saving_dir)
 
@@ -80,21 +73,15 @@ class ClassifierTrainer(object):
         Training loop for classifier
         :return:
         """
-
-        writer_train = SummaryWriter(self.saving_dir + '/runs_' + self.timestamp + '/train')
-        writer_valid = SummaryWriter(self.saving_dir + '/runs_' + self.timestamp + '/valid')
+        # Log with Tensorboard
+        writer_train = SummaryWriter(self.saving_dir + '/runs_' + timestamp + '/train')
+        writer_valid = SummaryWriter(self.saving_dir + '/runs_' + timestamp + '/valid')
 
         train_dataset = EyesAnnotatedDataloader(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
                                                 is_train=True, size=self.train_size,
-                                                transform=transforms.Compose([transforms.RandomHorizontalFlip(),
-                                                                              transforms.transforms.RandomAffine(0.1),
-                                                                              ])
                                                 )
         val_dataset = EyesAnnotatedDataloader(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
                                               is_train=False, size=self.train_size,
-                                              transform=transforms.Compose([transforms.RandomHorizontalFlip(),
-                                                                            transforms.transforms.RandomAffine(0.1),
-                                                                            ])
                                               )
 
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=len(train_dataset),
@@ -147,8 +134,8 @@ class ClassifierTrainer(object):
         while step_idx < self.num_iters:
             for idx_batch, (image_batch, target_batch) in enumerate(train_loader):
                 self.model.train()
-                image_batch = image_batch.cuda()
-                target_batch = target_batch.cuda()
+                image_batch = image_batch.to(device)
+                target_batch = target_batch.to(device)
                 pred_batch = self.model(image_batch)
                 optimizer.zero_grad()
                 train_loss = F.binary_cross_entropy(pred_batch, target_batch)
@@ -195,13 +182,14 @@ class ClassifierTrainer(object):
                     # Save only if better metrics
                     if len(results['valid_accuracy']) > 2 and results['valid_accuracy'][-1] > results['valid_accuracy'][-2] or \
                             len(results['valid_eer']) > 2 and results['valid_eer'][-1] < results['valid_eer'][-2]:
-                        output_dir = os.path.join(self.saving_dir, 'cls_{}_{}.pth'.format(step_idx, self.timestamp))
+                        output_dir = os.path.join(self.saving_dir, 'cls_{}_{}.pth'.format(step_idx, timestamp))
                         torch.save(self.model.state_dict(), output_dir)
 
             step_idx += 1
 
+            # Save results in .csv file
             results_to_save = pd.DataFrame(results)
-            output_dir = os.path.join(self.saving_dir, 'cls_{}.csv'.format(self.timestamp))
+            output_dir = os.path.join(self.saving_dir, 'cls_{}.csv'.format(timestamp))
             results_to_save.to_csv(output_dir, index=False)
 
             if len(results['train_loss']) and abs(results['train_loss'][-1] - results['valid_loss'][-1]) > args.margin:
@@ -221,7 +209,7 @@ class ClassifierTrainer(object):
         :param step_idx:int
             Index of the current iteration
         :param split: string, optional
-            Name of data split to visualize, default: 'train'
+            Name of dataset split to visualize, default: 'train'
         :return: plots grid of images with predictions
         """
 
@@ -270,8 +258,8 @@ class ClassifierTrainer(object):
 
         self.model.train(False)
         image_batch, target_batch = next(iter(val_loader))
-        image_batch = image_batch.cuda()
-        target_batch = target_batch.cuda()
+        image_batch = image_batch.to(device)
+        target_batch = target_batch.to(device)
         with torch.no_grad():
             pred_batch = self.model(image_batch)
             loss = F.binary_cross_entropy(pred_batch, target_batch)
@@ -306,7 +294,7 @@ class ClassifierTrainer(object):
             results = dict()
             results['predictions'] = [1 if x.item() is True else 0 for x in hard_pred_batch]
             results['targets'] = [1 if x.item() is True else 0 for x in target_bool_batch]
-            output_dir = os.path.join(self.saving_dir, 'val_predictions_{}.csv'.format(self.timestamp))
+            output_dir = os.path.join(self.saving_dir, 'val_predictions_{}.csv'.format(timestamp))
             results = pd.DataFrame(results)
             results.to_csv(output_dir, index=False)
 
@@ -355,6 +343,6 @@ if __name__ == "__main__":
     logger.addHandler(file_handler)
     logger.info("Used device: %s" % device)
 
-    # Run VAE training
-    cls_trainer = ClassifierTrainer(args, timestamp, from_scratch=cfg_cls.from_scratch, evaluate=cfg_cls.evaluate)
+    # Run classifier training
+    cls_trainer = ClassifierTrainer(args, from_scratch=cfg_cls.from_scratch, evaluate=cfg_cls.evaluate)
     cls_trainer.train()
