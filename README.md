@@ -18,7 +18,7 @@ Thus, we solve the binary classification problem with unlabelled data. The goals
 
 1. Research the problem of limited size of annotated dataset.
 2. Implement an approach based on VAE to classify images with eyes where the final score [0,1], i.e. 0.0 - closed, 1.0 - open.
-3. Examine the clustering possibilities of VAE in the latent space
+3. Evaluate classification results.
 
 ## Approach
 
@@ -30,13 +30,13 @@ The approach consists of two stages.
 * **Stage II:**  we use the pre-trained VAE encoder for the supervised training. For this purpose, we manually annotated 100 samples from the dataset. We freeze the encoder and add one neuron with sigmoid activation function to enable binary classification. 
 We set cls_threshold = 0.5. Thus, if the predicted value < 0.5, then the predicted label is "CLOSED", otherwise "OPEN". 
 
-The full description of this project with results are available in [Notebook](Notebook.ipynb). Some prediction examples:
+The full description of this project with results are available in [Notebook](Notebook.ipynb). Some predicted examples:
 
 <p align="center">
 <img src="images/predictions.png" alt="image1" width="400"/>
 </p>
 
-Here you can find a guide how to run the project. If you want to test the model only, skip Step 2 and move to [Step 3: Inference](#step-3-inference) 
+Here you can find a guide how to run the project. If you only want to test the model, skip Step 2 and move to [Step 3: Inference](#step-3-inference) 
 
 ## Step 1: Setup
 
@@ -54,16 +54,16 @@ $ source activate <env_name>
 
 3. Set up project directories
 
-Project tree may look like this: 
+A project tree may look like this: 
 ```
     project_root
     | ---- eyes-classification
     |      |----data_dir
     |      |        EyesData.zip
     |      |        targets.json
-    +      |----output_dir  
+    +      |----output  
     |      |        #...trained models
-    +      |--- logs_dir
+    +      |--- logs
     |      |        ... 
     |      |--- configs
     |      |        ...
@@ -132,7 +132,7 @@ chmod +x train_cls.sh
 ## Step 3: Inference 
 **Inference can be run w/o steps above.**
 
-We use `class OpenEyesClassificator(nn.Module)` for inference. 
+We use [class OpenEyesClassificator(nn.Module)](https://github.com/MariaPdg/eyes-classification/blob/1f94f381380513f60701e0ba6c82ca81efe02bab/inference.py#L18) for inference. 
 
 1. Specify paths for inference in [cls_config.py](configs/cls_config.py):
 
@@ -140,18 +140,18 @@ We use `class OpenEyesClassificator(nn.Module)` for inference.
 model_path = 'eyes-classification/output/cls/cls_20211108-202409/cls_6200_20211108-202409.pth'
 abs_image_path = 'absolute/path/to/image/image.jpg'
 ```
-where `/path/to/model/` is the path after project root.
+where `model_path` is the path after the project root.
 
 2. Run [inference.py](inference.py):
 
 ```python
 python3 inference.py 
 ```
-3. The program prints the score from 0 to 1 and  plots the image with a prediction. 
+3. The program prints the score from 0.0 to 1.0 and  plots the image with a prediction. 
 The results will be saved in the directory: `root/output_dir/inference/inference_<timestep>`. For example:
 
 [comment]: <> (![image]&#40;images/test2.png&#41;)
 
 <p align="center">
-<img src="images/test2.png" alt="image2" width="300"/>
+<img src="images/test2.png" alt="image2" width="400"/>
 </p>
