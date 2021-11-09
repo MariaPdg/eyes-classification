@@ -36,7 +36,7 @@ The full description of this project with results are available in [Notebook](No
 <img src="images/predictions.png" alt="image1" width="400"/>
 </p>
 
-Here you can find a guide how to run the project. 
+Here you can find a guide how to run the project. If you want to test the model only, skip Step 2 and move to [Step 3: Inference](#step-3-inference) 
 
 ## Step 1: Setup
 
@@ -97,6 +97,14 @@ python3 train_vae.py
 ```
 3. The results (config, images, model) will be saved in the directory: `root/output_dir/vae/vae_<timestep>`
 
+4. *Optionally:* run experiments
+
+```python
+# Linux:
+chmod +x train_vae.sh
+./train_vae.sh
+```
+
 ### Stage II: Classifier
 
 1. If you want to change classifier training parameters, set up [cls_config.py](configs/cls_config.py)
@@ -112,6 +120,15 @@ python3 train_classifier.py
 
 4. The results will be saved in the directory: `root/output_dir/cls/cls_<timestep>`
 
+
+5. *Optionally:* run experiments
+
+```python
+# Linux:
+chmod +x train_cls.sh
+./train_cls.sh
+```
+
 ## Step 3: Inference 
 **Inference can be run w/o steps above.**
 
@@ -120,7 +137,7 @@ We use `class OpenEyesClassificator(nn.Module)` for inference.
 1. Specify paths for inference in [cls_config.py](configs/cls_config.py):
 
 ```python
-model_path = 'eyes-classification/output/cls/cls_6200_20211108-202409.pth'
+model_path = 'eyes-classification/output/cls/cls_20211108-202409/cls_6200_20211108-202409.pth'
 abs_image_path = 'absolute/path/to/image/image.jpg'
 ```
 where `/path/to/model/` is the path after project root.
