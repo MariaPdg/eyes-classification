@@ -21,9 +21,6 @@ from utils.data_loader import EyesAnnotatedDataloader
 from utils.models import EyeClassifier
 
 
-DEBUG = False
-
-
 class ClassifierTrainer(object):
 
     """ A class for classifier training """
@@ -41,7 +38,8 @@ class ClassifierTrainer(object):
         if from_scratch:
             self.pretrained_vae = None
         else:
-            self.pretrained_vae = os.path.join(args.root, args.output_dir, 'vae', args.pretrained_vae, args.pretrained_vae + '.pth')
+            self.pretrained_vae = os.path.join(args.root, args.output_dir, 'vae', args.pretrained_vae,
+                                               args.pretrained_vae + '.pth')
         self.model = EyeClassifier(args.latent_size, self.pretrained_vae)
 
         self.model.to(device)
@@ -78,16 +76,14 @@ class ClassifierTrainer(object):
         writer_valid = SummaryWriter(self.saving_dir + '/runs_' + timestamp + '/valid')
 
         train_dataset = EyesAnnotatedDataloader(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
-                                                is_train=True, size=self.train_size,
-                                                )
+                                                is_train=True, size=self.train_size)
         val_dataset = EyesAnnotatedDataloader(ann_data_dir=self.labeled_data, unlabeled_zip=self.data_dir,
-                                              is_train=False, size=self.train_size,
-                                              )
+                                              is_train=False, size=self.valid_size)
 
         train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=len(train_dataset),
-                                                   shuffle=True, num_workers=self.num_workers, drop_last=True)
+                                                   shuffle=True, num_workers=self.num_workers)
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=len(val_dataset),
-                                                 shuffle=False, num_workers=self.num_workers, drop_last=True)
+                                                 shuffle=False, num_workers=self.num_workers)
 
         all_params = list(self.model.parameters())
         logger.info("Len(parameters): %s" % len(all_params))
@@ -95,7 +91,6 @@ class ClassifierTrainer(object):
         optimizable_params = [p for p in self.model.parameters() if p.requires_grad]
         logger.info("Len(optimizable_params): %s" % len(optimizable_params))
         optimizer = torch.optim.Adam(optimizable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
-        # optimizer = torch.optim.RMSprop(optimizable_params, lr=self.learning_rate, weight_decay=self.weight_decay)
 
         # Log training and validation metrics
         results = dict(
@@ -114,19 +109,23 @@ class ClassifierTrainer(object):
             model_name = self.pretrained_cls[0].split('_')[0] + '_' + str(args.pretrained_cls[1]) + '_' + \
                          self.pretrained_cls[0].split('_')[1] + '.pth'
             model_dir = os.path.join(self.output_dir, 'cls', self.pretrained_cls[0], model_name)
-            if os.path.exists(model_dir):
+            try:
                 logging.info('Load pretrained model {}'.format(model_dir))
                 self.model.load_state_dict(torch.load(model_dir))
-            if self.evaluate:
-                # Only evaluate the model and save predictions
-                valid_loss, valid_accuracy, eer, thresh = self.validate(val_loader, step_idx, save=True)
-                logging.info(
-                    f'Iteration {step_idx}  '
-                    f'---- valid loss: {valid_loss.item():.5f} ---- | '
-                    f'---- valid accuracy: {valid_accuracy.item():.5f} ----|'
-                    f'---- EER: {eer:.5f}---|'
-                    f'---- threshold: {thresh:.3f}')
-                exit()
+                if self.evaluate:
+                    # Only evaluate the model and save predictions
+                    valid_loss, valid_accuracy, eer, thresh = self.validate(val_loader, step_idx, save=True)
+                    logging.info(
+                        f'Iteration {step_idx}  '
+                        f'---- valid loss: {valid_loss.item():.5f} ---- | '
+                        f'---- valid accuracy: {valid_accuracy.item():.5f} ----|'
+                        f'---- EER: {eer:.5f}---|'
+                        f'---- threshold: {thresh:.3f}')
+                    exit()
+            except FileNotFoundError as e:
+                logger.info(e)
+                logger.info('Wrong path to the pre-trained classifier')
+                return -1
         else:
             logging.info('Initialize')
 
@@ -145,7 +144,7 @@ class ClassifierTrainer(object):
                 hard_pred_batch = pred_batch > self.cls_threshold
                 target_bool_batch = target_batch > self.cls_threshold
 
-                if step_idx % 100 == 0:
+                if step_idx % 200 == 0:
                     train_accuracy = torch.sum(torch.eq(hard_pred_batch, target_bool_batch)) / len(target_bool_batch)
 
                     logging.info(
