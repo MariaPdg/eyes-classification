@@ -1,10 +1,10 @@
 import os
 import time
-import torch
-import logging
 import json
+import logging
 import argparse
 
+import torch
 import numpy as np
 import torch.nn as nn
 from PIL import Image
@@ -19,9 +19,9 @@ class OpenEyesClassificator(nn.Module):
 
     """ Class for predictions """
 
-    def __init__(self, pretrained_cls, latent_size=50):
+    def __init__(self, pretrained_cls_path, latent_size=50):
         """
-        :param pretrained_cls: string
+        :param pretrained_cls_path: string
             Absolute path to pre-trained classifier model
         :param latent_size: int
             Dimension of the latent space
@@ -29,9 +29,13 @@ class OpenEyesClassificator(nn.Module):
         super().__init__()
 
         self.model = EyeClassifier(latent_size=latent_size)
-        self.model.load_state_dict(torch.load(pretrained_cls), strict=True)
-        for param in self.model.parameters():
-            param.requires_grad = False
+        try:
+            self.model.load_state_dict(torch.load(pretrained_cls_path), strict=True)
+            for param in self.model.parameters():
+                param.requires_grad = False
+        except FileNotFoundError as e:
+            logger.info(e)
+            logger.info('Wrong path to classifier model')
         self.model.train(False)
 
     def predict(self, inpIm):
@@ -42,12 +46,17 @@ class OpenEyesClassificator(nn.Module):
         :return: float
             Predicted score between 0 and 1
         """
+        try:
+            img = Image.open(inpIm)
+            img_np = 1 / 255 * np.expand_dims(img, 0)
+            img_np = np.expand_dims(img_np, 0)
+            img_tensor = torch.FloatTensor(img_np)
+            pred = self.model(img_tensor)
 
-        img = Image.open(inpIm)
-        img_np = 1 / 255 * np.expand_dims(img, 0)
-        img_np = np.expand_dims(img_np, 0)
-        img_tensor = torch.FloatTensor(img_np)
-        pred = self.model(img_tensor)
+        except FileNotFoundError as e:
+            logger.info(e)
+            logger.info('Wrong path to image')
+            return -1
 
         return pred.item()
 
@@ -90,8 +99,8 @@ if __name__ == "__main__":
     parser.add_argument('--logs_dir', '-l', default=cfg_data.logs_dir, help='path to save logs', type=str)
     parser.add_argument('--latent_size', default=cfg_cls.latent_size, help='dimension of the latent space', type=int)
     parser.add_argument('--device', default=cfg_cls.device, help='device to use', type=str)
-    parser.add_argument('--abs_model_path', '-cls_path', default=cfg_cls.abs_model_path,
-                        help='pretrained  classifier', type=str)
+    parser.add_argument('--model_path', '-cls_path', default=cfg_cls.model_path,
+                        help='pretrained  classifier, path after the root', type=str)
     parser.add_argument('--cls_threshold', '-cls_thresh', default=cfg_cls.cls_thresh,
                         help='threshold for sigmoid output', type=float)
     parser.add_argument('--abs_image_path', '-im_path', default=cfg_cls.abs_image_path, help='absolute image path', type=str)
@@ -101,21 +110,21 @@ if __name__ == "__main__":
 
     # Check available gpu
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
-    timestep = time.strftime("%Y%m%d-%H%M%S")
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
 
     # Define logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger()
     log_dir = os.path.join(args.root, args.logs_dir)
     os.makedirs(log_dir, exist_ok=True)
-    file_handler = logging.FileHandler(os.path.join(log_dir, timestep))
+    file_handler = logging.FileHandler(os.path.join(log_dir, timestamp))
     logger = logging.getLogger()
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.info("Used device: %s" % device)
 
     # Create directory to save outputs
-    saving_dir = os.path.join(args.root, args.output_dir, 'inference', 'inference_{}'.format(timestep))
+    saving_dir = os.path.join(args.root, args.output_dir, 'inference', 'inference_{}'.format(timestamp))
     if not os.path.exists(saving_dir):
         os.makedirs(saving_dir)
 
@@ -123,7 +132,9 @@ if __name__ == "__main__":
     with open(os.path.join(saving_dir, 'config_inf.txt'), 'w') as f:
         json.dump(args.__dict__, f, indent=2)
 
-    model = OpenEyesClassificator(args.abs_model_path, latent_size=args.latent_size)
+    model_dir = os.path.join(args.root, args.model_path)
+    logger.info("Loading model: %s" % model_dir)
+    model = OpenEyesClassificator(model_dir, latent_size=args.latent_size)
     pred = model.predict(args.abs_image_path)
     logger.info("Prediction: %f" % pred)
     model.visualize(args.abs_image_path, cls_threshold=args.cls_threshold, path=saving_dir)

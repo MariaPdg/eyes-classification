@@ -21,7 +21,7 @@ class BatchNorm(nn.Module):
 
 class Encoder(nn.Module):
 
-    """ Class for CNN encoder"""
+    """ Class for VAE encoder"""
 
     def __init__(self, latent_size):
         """
@@ -63,7 +63,7 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
 
-    """ Class for CNN decoder """
+    """ Class for VAE decoder """
 
     def __init__(self, latent_size):
         """
@@ -170,13 +170,17 @@ class EyeClassifier(nn.Module):
         self.encoder = Encoder(latent_size)
         self.freeze_backbone = pretrained_vae is not None
         if pretrained_vae is not None:
-            state_dict = torch.load(pretrained_vae)
-            state_dict = OrderedDict(((k[len("encoder."):], v)
-                                      for k, v in state_dict.items()
-                                      if "encoder." in k))  # while encoder
-            self.encoder.load_state_dict(state_dict, strict=True)
-            for param in self.encoder.parameters():
-                param.requires_grad = False
+            try:
+                state_dict = torch.load(pretrained_vae)
+                state_dict = OrderedDict(((k[len("encoder."):], v)
+                                          for k, v in state_dict.items()
+                                          if "encoder." in k))  # while encoder
+                self.encoder.load_state_dict(state_dict, strict=True)
+                for param in self.encoder.parameters():
+                    param.requires_grad = False
+            except FileNotFoundError as e:
+                print(e)
+                print('Wrong path to VAE model, train classifier from scratch')
         self.encoder.eval()
         self.class_fc = nn.Linear(latent_size, 1)
 
@@ -211,6 +215,6 @@ if __name__ == "__main__":
 
     print(len(sys.argv))
     print(sys.argv)
-    data_dir = os.path.join(sys.argv[1], 'vae_20211104-213016/vae_20211104-213016.pth')
+    data_dir = os.path.join(sys.argv[1], 'vae/vae_20211104-213016/vae_20211104-213016.pth')
     vae = VAE(latent_size=50).cuda()
     classifier = EyeClassifier(latent_size=50, pretrained_vae=data_dir).cuda()
