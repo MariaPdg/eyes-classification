@@ -14,7 +14,7 @@ in order to detect these similarities
 ## Problem
 
 In this project, we classify open and closed human eyes presented in a dataset. The dataset includes 4000 images without labels. 
-Thus, we solve binary classification problems with unlabelled data. The goals of this project:
+Thus, we solve the binary classification problem with unlabelled data. The goals of this project:
 
 1. Research the problem of limited size of annotated dataset.
 2. Implement an approach based on VAE to classify images with eyes where the final score [0,1], i.e. 0.0 - closed, 1.0 - open.
@@ -28,7 +28,7 @@ The approach consists of two stages.
 
 
 * **Stage II:**  we use the pre-trained VAE encoder for the supervised training. For this purpose, we manually annotated 100 samples from the dataset. We freeze the encoder and add one neuron with sigmoid activation function to enable binary classification. 
-We set cls_threshold = 0.5. Thus, if the predicted value < 0.5, then the predicted label is "CLOSED", otherwise, "OPEN". 
+We set cls_threshold = 0.5. Thus, if the predicted value < 0.5, then the predicted label is "CLOSED", otherwise "OPEN". 
 
 The full description of this project with results are available in [Notebook](Notebook.ipynb). Some prediction examples:
 
@@ -49,7 +49,7 @@ for help.
 ```python
 # For Linux:
 $ conda activate
-$ source activate [env_name]
+$ source activate <env_name>
 ```
 
 3. Set up project directories
@@ -77,7 +77,7 @@ For this project tree specify paths in [data_config.py](configs/data_config.py):
 ```python
 
 # folder containing targets.json and EyesDataset.zip
-data_dir = ' eyes-classification/EyeData/'
+data_dir = ' eyes-classification/dataset/'
 # to save results of training
 output_dir = ' eyes-classification/output/'
 # to save logs
@@ -95,7 +95,7 @@ Output and log directories will be created during training.
 ```python
 python3 train_vae.py 
 ```
-3. The results (config, images, model) will be saved in the directory: `root/output_dir/vae/vae_[timestep]`
+3. The results (config, images, model) will be saved in the directory: `root/output_dir/vae/vae_<timestep>`
 
 ### Stage II: Classifier
 
@@ -110,7 +110,7 @@ pretrained_vae = 'vae_20211106-152325'
 python3 train_classifier.py 
 ```
 
-4. The results will be saved in the directory: `root/output_dir/cls/cls_[timestep]`
+4. The results will be saved in the directory: `root/output_dir/cls/cls_<timestep>`
 
 ## Step 3: Inference 
 **Inference can be run w/o steps above.**
@@ -120,9 +120,7 @@ We use `class OpenEyesClassificator(nn.Module)` for inference.
 1. Specify paths for inference in [cls_config.py](configs/cls_config.py):
 
 ```python
-"""___________Parameters for inference_________"""
-
-abs_model_path = '/path/to/model/model.pth'
+model_path = 'eyes-classification/output/cls/cls_6200_20211108-202409.pth'
 abs_image_path = 'absolute/path/to/image/image.jpg'
 ```
 where `/path/to/model/` is the path after project root.
@@ -133,7 +131,7 @@ where `/path/to/model/` is the path after project root.
 python3 inference.py 
 ```
 3. The program prints the score from 0 to 1 and  plots the image with a prediction. 
-The results will be saved in the directory: `root/output_dir/inference/inference_[timestep]`. For example:
+The results will be saved in the directory: `root/output_dir/inference/inference_<timestep>`. For example:
 
 [comment]: <> (![image]&#40;images/test2.png&#41;)
 
