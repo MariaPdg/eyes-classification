@@ -15,25 +15,21 @@ import configs.data_config as cfg_data
 import utils.models as models
 import utils.data_loader as utils
 
-DEBUG = False
-
 
 class VaeTrainer(object):
 
     """ A class for VAE training """
 
-    def __init__(self, args, timestep, pretrain=False):
+    def __init__(self, args, pretrain=False):
         """
         :param args: ArgumentParser object
             Arguments defined in configurations
-        :param timestep: string from time.strftime function
-            Time value from  to set a unique name
         :param pretrain: bool, optional
             True to continue training
         """
 
         self.vae = models.VAE(latent_size=args.latent_size)
-        self.vae.cuda()
+        self.vae.to(device)
         self.data_dir = os.path.join(args.root, args.data_dir, 'EyesDataset.zip')
         self.labeled_data = os.path.join(args.root, args.data_dir, 'targets.json')
         self.beta = args.beta
@@ -43,13 +39,9 @@ class VaeTrainer(object):
         self.pretrained_vae = args.pretrained_vae
         self.pretrain = pretrain
         self.num_iters = args.num_iters
-        self.timestep = timestep
 
         # Create directory to save outputs
-        if DEBUG:
-            self.saving_dir = os.path.join(args.root, args.output_dir, 'debug', 'vae_{}'.format(self.timestep))
-        else:
-            self.saving_dir = os.path.join(args.root, args.output_dir, 'vae', 'vae_{}'.format(self.timestep))
+        self.saving_dir = os.path.join(args.root, args.output_dir, 'vae', 'vae_{}'.format(timestamp))
         if not os.path.exists(self.saving_dir):
             os.makedirs(self.saving_dir)
 
@@ -62,13 +54,13 @@ class VaeTrainer(object):
         Training loop for VAE
         :return:
         """
-
-        writer = SummaryWriter(self.saving_dir + '/runs_' + self.timestep)
+        # Log with Tensorboard
+        writer = SummaryWriter(self.saving_dir + '/runs_' + timestamp)
 
         self.vae.train()
 
         image_list, image_path = utils.load_archive(self.labeled_data, self.data_dir, exclude_ann=True)
-        tensor_data = (1 / 255. * torch.tensor(image_list).float()).unsqueeze(1)
+        tensor_data = (1 / 255. * torch.tensor(image_list).float()).unsqueeze(1)  # image normalization
         dataset = torch.utils.data.TensorDataset(tensor_data)
         train_loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size,
                                              shuffle=True, num_workers=self.num_workers)
@@ -87,20 +79,18 @@ class VaeTrainer(object):
             if os.path.exists(model_dir):
                 logging.info('Load pretrained model')
                 self.vae.load_state_dict(torch.load(model_dir))
-            else:
-                logging.info('Initialize')
         else:
             logging.info('Initialize')
 
         step_idx = 0
         while step_idx < self.num_iters:
             for idx_batch, (batch,) in enumerate(train_loader):
-                batch = batch.cuda()
+                batch = batch.to(device)
                 pred_batch, z_batch, mu_batch, std_batch = self.vae(batch)
                 optimizer.zero_grad()
                 loss_recon = F.mse_loss(batch, pred_batch)
-                loss_kl = self.beta * models.kl_divergence(mu_batch, std_batch)  # beta-VAE
-                loss = loss_recon + loss_kl
+                loss_kl = models.kl_divergence(mu_batch, std_batch)
+                loss = loss_recon + self.beta * loss_kl  # beta-VAE loss
                 loss.backward()
                 optimizer.step()
 
@@ -116,7 +106,7 @@ class VaeTrainer(object):
                     os.makedirs(output_dir, exist_ok=True)
                     plt.savefig(output_dir + f"/{step_idx:06d}.png")
                     plt.close()
-                    # visualize the first 2 components of the latent space
+                    # Visualize the first 2 components of the latent space
                     output_dir = os.path.join(self.saving_dir, 'latent_space')
                     os.makedirs(output_dir, exist_ok=True)
                     plt.figure(figsize=(8, 5))
@@ -131,8 +121,8 @@ class VaeTrainer(object):
                     }, step_idx)
                     writer.add_scalar('loss_vae', loss, step_idx)
 
-                    # Log model per epoch
-                    output_dir = os.path.join(self.saving_dir, 'vae_{}.pth'.format(timestep))
+                    # Log model each 100 iterations
+                    output_dir = os.path.join(self.saving_dir, 'vae_{}.pth'.format(timestamp))
                     torch.save(self.vae.state_dict(), output_dir)
 
                     logging.info(
@@ -148,8 +138,9 @@ class VaeTrainer(object):
 
                 step_idx += 1
 
+            # Save results in .csv file
             results_to_save = pd.DataFrame(results)
-            output_dir = os.path.join(self.saving_dir, 'vae_{}.csv'.format(timestep))
+            output_dir = os.path.join(self.saving_dir, 'vae_{}.csv'.format(timestamp))
             results_to_save.to_csv(output_dir, index=False)
 
 
@@ -178,19 +169,19 @@ if __name__ == "__main__":
 
     # Check available gpu
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
-    timestep = time.strftime("%Y%m%d-%H%M%S")
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
 
     # Define logging
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger()
     log_dir = os.path.join(args.root, args.logs_dir)
     os.makedirs(log_dir, exist_ok=True)
-    file_handler = logging.FileHandler(os.path.join(log_dir, timestep))
+    file_handler = logging.FileHandler(os.path.join(log_dir, timestamp))
     logger = logging.getLogger()
     file_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.info("Used device: %s" % device)
 
     # Run VAE training
-    vae_trainer = VaeTrainer(args, timestep, pretrain=False)
+    vae_trainer = VaeTrainer(args, pretrain=False)
     vae_trainer.train()
