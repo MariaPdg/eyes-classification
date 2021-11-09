@@ -1,9 +1,9 @@
 import os
 import io
 import sys
+
 import json
 import zipfile
-
 import torch
 import numpy as np
 from PIL import Image
@@ -11,10 +11,10 @@ from PIL import Image
 
 def load_archive(ann_data_dir, unlabeled_zip, exclude_ann=False):
     """
-    Loads data from zip archive
+    Loads dataset from zip archive
 
     :param ann_data_dir: string
-        Directory to JSON file with annotated data
+        Directory to JSON file with annotated dataset
     :param unlabeled_zip: string
         Directory to ZIP archive with the whole dataset
     :param exclude_ann: bool, optional
@@ -49,10 +49,10 @@ def load_archive(ann_data_dir, unlabeled_zip, exclude_ann=False):
 
 def load_ann_dataset(ann_data_dir, unlabeled_zip, is_train, size=50):
     """
-    Loads annotated data from .json file
+    Loads annotated dataset from .json file
 
     :param ann_data_dir: string
-        Directory to JSON file with annotated data
+        Directory to JSON file with annotated dataset
     :param unlabeled_zip: string
         Directory to ZIP archive with the whole dataset
     :param is_train: bool
@@ -95,13 +95,13 @@ def load_ann_dataset(ann_data_dir, unlabeled_zip, is_train, size=50):
 
 class EyesAnnotatedDataloader(object):
 
-    """ Dataloader for annotated data"""
+    """ Dataloader for annotated dataset"""
 
     def __init__(self, ann_data_dir, unlabeled_zip, is_train, size=50, transform=None):
         """
 
         :param ann_data_dir: string
-            Directory to JSON file with annotated data
+            Directory to JSON file with annotated dataset
         :param unlabeled_zip: string
             Directory to ZIP archive with the whole dataset
         :param is_train: bool
@@ -135,6 +135,7 @@ if __name__ == "__main__":
     print(len(sys.argv))
     print(sys.argv)
     data_dir = os.path.join(sys.argv[1], 'EyesDataset.zip')
-    image_list, image_path = load_archive(data_dir)
+    ann_data_dir = os.path.join(sys.argv[1], 'targets.json')
+    image_list, image_path = load_archive(ann_data_dir, data_dir)
     print(len(image_list))
     print(image_list[0].shape)
