@@ -7,18 +7,6 @@ import torch.nn as nn
 from collections import OrderedDict
 
 
-class BatchNorm(nn.Module):
-    def __init__(self, op):
-        super().__init__()
-        self.op = op
-        self.bn = nn.BatchNorm2d(op.out_channels)
-
-    def forward(self, x):
-        x = self.op(x)
-        x = self.bn(x)
-        return x
-
-
 class Encoder(nn.Module):
 
     """ Class for VAE encoder"""
@@ -59,6 +47,21 @@ class Encoder(nn.Module):
         mu = self.mu_fc(x)
         log_var = self.log_var_fc(x)
         return mu, log_var
+
+
+class BatchNorm(nn.Module):
+
+    """Batch normalization layer for encoder"""
+
+    def __init__(self, op):
+        super().__init__()
+        self.op = op
+        self.bn = nn.BatchNorm2d(op.out_channels)
+
+    def forward(self, x):
+        x = self.op(x)
+        x = self.bn(x)
+        return x
 
 
 class Decoder(nn.Module):

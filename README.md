@@ -11,6 +11,9 @@ e.g. there are a lot of unlabelled data on the Web, medical data etc. In this ca
 of clustering based on inherited image similarities. Semi-supervised and unsupervised approaches have been introduced 
 in order to detect these similarities 
 
+We use a semi-supervised approach based on VAE for the binary classification of closed and open eyes, but this approach 
+can be extended to multiclass problems with other types of unlabeled data. 
+
 ## Problem
 
 In this project, we classify open and closed human eyes presented in a dataset. The dataset includes 4000 images without labels. 
@@ -27,7 +30,7 @@ The approach consists of two stages.
 * **Stage I:**  We train VAE in an unsupervised manner, i.e. VAE accepts an image as an input and tries to reconstruct this image minimizing loss function. 
 
 
-* **Stage II:**  we use the pre-trained VAE encoder for the supervised training. For this purpose, we manually annotated 100 samples from the dataset. We freeze the encoder and add one neuron with sigmoid activation function to enable binary classification. 
+* **Stage II:**  We use the pre-trained VAE encoder for the supervised training. For this purpose, we manually annotated 100 samples from the dataset. We freeze the encoder and add one neuron with sigmoid activation function to enable binary classification. 
 We set cls_threshold = 0.5. Thus, if the predicted value < 0.5, then the predicted label is "CLOSED", otherwise "OPEN". 
 
 The full description of this project with results are available in [Notebook](Notebook.ipynb). Some predicted examples:
@@ -52,7 +55,11 @@ $ conda activate
 $ source activate <env_name>
 ```
 
-3. Set up project directories
+3. Clone this repository to `<project_root>` and set up project directories
+
+```python
+git@github.com:MariaPdg/eyes-classification.git
+```
 
 A project tree may look like this: 
 ```
@@ -77,11 +84,11 @@ For this project tree specify paths in [data_config.py](configs/data_config.py):
 ```python
 
 # folder containing targets.json and EyesDataset.zip
-data_dir = ' eyes-classification/dataset/'
+data_dir = 'eyes-classification/dataset/'
 # to save results of training
-output_dir = ' eyes-classification/output/'
+output_dir = 'eyes-classification/output/'
 # to save logs
-logs_dir = ' eyes-classification/logs/'
+logs_dir = 'eyes-classification/logs/'
 
 ```
 Output and log directories will be created during training. 
@@ -138,7 +145,7 @@ We use [class OpenEyesClassificator(nn.Module)](https://github.com/MariaPdg/eyes
 
 ```python
 model_path = 'eyes-classification/output/cls/cls_20211108-202409/cls_6200_20211108-202409.pth'
-abs_image_path = 'absolute/path/to/image/image.jpg'
+abs_image_path = 'images/inf_test2.jpg'  # /absolute/path/to/image/image.jpg  
 ```
 where `model_path` is the path after the project root.
 
