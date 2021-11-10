@@ -28,5 +28,5 @@ pretrained_cls = None
 """____________________________Paths for inference_______________________________________"""
 
 model_path = 'eyes-classification/output/cls/cls_20211106-210609/cls_1500_20211106-210609.pth'
-abs_image_path = 'absolute/path/to/image/image.jpg'
+abs_image_path = 'images/inf_test2.jpg'  # /absolute/path/to/image/image.jpg
 
