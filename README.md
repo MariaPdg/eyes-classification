@@ -1,4 +1,4 @@
-# Self-supervised eyes classification
+# Semi-supervised eyes classification
 
 ## Motivation
 
